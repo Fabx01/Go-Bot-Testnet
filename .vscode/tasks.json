@@ -1,0 +1,16 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build TraderGoBinance",
+			"type": "shell",
+			"command": "go build -o traderbot ./cmd",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [
+				"$go"
+			],
+			"group": "build"
+		}
+	]
+}
