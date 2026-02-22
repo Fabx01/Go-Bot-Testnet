@@ -19,6 +19,12 @@ func TestLoadDefaultsToSafeModes(t *testing.T) {
 	if !cfg.DryRun {
 		t.Fatalf("expected DryRun=true by default")
 	}
+	if !cfg.Observability {
+		t.Fatalf("expected Observability=true by default")
+	}
+	if cfg.ObservabilityAddr == "" {
+		t.Fatalf("expected ObservabilityAddr default value")
+	}
 }
 
 func TestLoadBlocksMainnetWithoutExplicitAllow(t *testing.T) {

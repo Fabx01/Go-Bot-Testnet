@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: TraderBotDashboards
+    orgId: 1
+    folder: TraderBot
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

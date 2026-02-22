@@ -10,6 +10,7 @@ import (
 	"github.com/seuprojeto/tradergobinance/internal/config"
 	"github.com/seuprojeto/tradergobinance/internal/domain"
 	logpkg "github.com/seuprojeto/tradergobinance/internal/log"
+	"github.com/seuprojeto/tradergobinance/internal/observability"
 	"github.com/seuprojeto/tradergobinance/internal/strategy"
 )
 
@@ -19,14 +20,19 @@ type TraderEngine struct {
 	cfg      *config.Config
 	exchange api.ExchangeClient
 	strategy strategy.Strategy
+	recorder observability.Recorder
 	position *domain.Position
 }
 
-func New(cfg *config.Config, exchange api.ExchangeClient, strategy strategy.Strategy) *TraderEngine {
+func New(cfg *config.Config, exchange api.ExchangeClient, strategy strategy.Strategy, recorder observability.Recorder) *TraderEngine {
+	if recorder == nil {
+		recorder = observability.NewNoopRecorder()
+	}
 	return &TraderEngine{
 		cfg:      cfg,
 		exchange: exchange,
 		strategy: strategy,
+		recorder: recorder,
 	}
 }
 
@@ -50,18 +56,31 @@ func (e *TraderEngine) Run(ctx context.Context) error {
 	}
 }
 
-func (e *TraderEngine) step(ctx context.Context) error {
+func (e *TraderEngine) step(ctx context.Context) (stepErr error) {
+	start := time.Now()
+	defer func() {
+		e.recorder.ObserveCycle(time.Since(start), stepErr)
+	}()
+
 	apiCtx, cancel := context.WithTimeout(ctx, apiCallTimeout)
 	defer cancel()
 
 	candles, err := e.exchange.GetCandles(apiCtx, e.cfg.Symbol, e.cfg.Interval, e.cfg.CandleLimit)
 	if err != nil {
-		return fmt.Errorf("erro ao buscar candles: %w", sanitizeErr(err))
+		stepErr = fmt.Errorf("erro ao buscar candles: %w", sanitizeErr(err))
+		return stepErr
 	}
 
 	currentPrice := candles[len(candles)-1].Close
+	e.recorder.SetLastPrice(currentPrice)
+	if e.position == nil {
+		e.recorder.ClearPosition()
+	} else {
+		e.recorder.SetPosition(e.position.EntryPrice, e.position.BaseQty, currentPrice)
+	}
 
 	signal, reason := e.strategy.Evaluate(candles, e.position)
+	e.recorder.ObserveSignal(signal)
 	logpkg.InfoLogger.Printf("symbol=%s price=%.6f signal=%s reason=%s", e.cfg.Symbol, currentPrice, signal, reason)
 
 	if e.position != nil {
@@ -80,12 +99,14 @@ func (e *TraderEngine) step(ctx context.Context) error {
 		if e.position != nil {
 			return nil
 		}
-		return e.openPosition(ctx, currentPrice)
+		stepErr = e.openPosition(ctx, currentPrice)
+		return stepErr
 	case domain.SignalSell:
 		if e.position == nil {
 			return nil
 		}
-		return e.closePosition(ctx, currentPrice)
+		stepErr = e.closePosition(ctx, currentPrice)
+		return stepErr
 	default:
 		return nil
 	}
@@ -103,6 +124,8 @@ func (e *TraderEngine) openPosition(ctx context.Context, price float64) error {
 			BaseQty:    baseQty,
 			OpenedAt:   time.Now(),
 		}
+		e.recorder.ObserveTrade(domain.OrderSideBuy, "dry_run", 0, 0)
+		e.recorder.SetPosition(e.position.EntryPrice, e.position.BaseQty, price)
 		logpkg.InfoLogger.Printf("[DRY-RUN] BUY symbol=%s qty=%.8f entry=%.6f", e.cfg.Symbol, baseQty, price)
 		return nil
 	}
@@ -126,6 +149,8 @@ func (e *TraderEngine) openPosition(ctx context.Context, price float64) error {
 		BaseQty:    order.ExecutedQty,
 		OpenedAt:   time.Now(),
 	}
+	e.recorder.ObserveTrade(domain.OrderSideBuy, "live", 0, 0)
+	e.recorder.SetPosition(e.position.EntryPrice, e.position.BaseQty, price)
 	logpkg.InfoLogger.Printf("BUY executado orderId=%d qty=%.8f entry=%.6f", order.OrderID, order.ExecutedQty, entry)
 	return nil
 }
@@ -139,6 +164,8 @@ func (e *TraderEngine) closePosition(ctx context.Context, price float64) error {
 	if e.cfg.DryRun {
 		pnlPct := ((price / position.EntryPrice) - 1) * 100
 		pnlQuote := (price - position.EntryPrice) * position.BaseQty
+		e.recorder.ObserveTrade(domain.OrderSideSell, "dry_run", pnlPct, pnlQuote)
+		e.recorder.ClearPosition()
 		logpkg.InfoLogger.Printf("[DRY-RUN] SELL symbol=%s qty=%.8f exit=%.6f pnl=%.4f%% pnl_quote=%.6f", e.cfg.Symbol, position.BaseQty, price, pnlPct, pnlQuote)
 		e.position = nil
 		return nil
@@ -162,6 +189,8 @@ func (e *TraderEngine) closePosition(ctx context.Context, price float64) error {
 	}
 	pnlPct := ((exit / position.EntryPrice) - 1) * 100
 	pnlQuote := (exit - position.EntryPrice) * qtyToSell
+	e.recorder.ObserveTrade(domain.OrderSideSell, "live", pnlPct, pnlQuote)
+	e.recorder.ClearPosition()
 	logpkg.InfoLogger.Printf("SELL executado orderId=%d qty=%.8f exit=%.6f pnl=%.4f%% pnl_quote=%.6f", order.OrderID, qtyToSell, exit, pnlPct, pnlQuote)
 	e.position = nil
 	return nil

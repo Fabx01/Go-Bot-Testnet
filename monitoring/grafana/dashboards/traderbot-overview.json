@@ -1,0 +1,96 @@
+{
+  "id": null,
+  "uid": "traderbot-overview",
+  "title": "TraderBot Overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Position Open",
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "targets": [{"expr": "traderbot_position_open", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "none", "decimals": 0}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "horizontal", "textMode": "auto"}
+    },
+    {
+      "type": "stat",
+      "title": "Last Price",
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "targets": [{"expr": "traderbot_last_price", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 2}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "horizontal", "textMode": "auto"}
+    },
+    {
+      "type": "stat",
+      "title": "Cumulative PnL (Quote)",
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+      "targets": [{"expr": "traderbot_cumulative_pnl_quote", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 4}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "horizontal", "textMode": "auto"}
+    },
+    {
+      "type": "stat",
+      "title": "Unrealized PnL %",
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+      "targets": [{"expr": "traderbot_unrealized_pnl_percent", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "decimals": 2}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "horizontal", "textMode": "auto"}
+    },
+    {
+      "type": "stat",
+      "title": "Cycles/min",
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "targets": [{"expr": "sum(rate(traderbot_cycles_total[1m])) * 60", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "decimals": 1}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "horizontal", "textMode": "auto"}
+    },
+    {
+      "type": "stat",
+      "title": "Cycle Error Rate",
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "targets": [{"expr": "sum(rate(traderbot_cycles_total{status=\"error\"}[5m])) / clamp_min(sum(rate(traderbot_cycles_total[5m])), 1e-9)", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "decimals": 2}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "horizontal", "textMode": "auto"}
+    },
+    {
+      "type": "timeseries",
+      "title": "Price",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [{"expr": "traderbot_last_price", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 2}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "PnL",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [
+        {"expr": "traderbot_cumulative_pnl_quote", "legendFormat": "Cumulative quote", "refId": "A"},
+        {"expr": "traderbot_last_trade_pnl_quote", "legendFormat": "Last trade quote", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 4}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Signals/min",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [{"expr": "sum by (signal) (rate(traderbot_signals_total[1m]))", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "decimals": 2}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Trades/min",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [{"expr": "sum by (side, mode) (rate(traderbot_trades_total[5m]))", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "ops", "decimals": 3}, "overrides": []}
+    }
+  ],
+  "templating": {"list": []},
+  "annotations": {"list": []}
+}

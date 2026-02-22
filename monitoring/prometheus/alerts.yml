@@ -1,0 +1,52 @@
+groups:
+  - name: traderbot.rules
+    rules:
+      - alert: TraderBotDown
+        expr: up{job="traderbot"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: traderbot
+        annotations:
+          summary: "TraderBot offline"
+          description: "Prometheus nao consegue coletar metricas do traderbot por mais de 1 minuto."
+
+      - alert: TraderBotNoCycles
+        expr: up{job="traderbot"} == 1 and sum(increase(traderbot_cycles_total[2m])) < 1
+        for: 2m
+        labels:
+          severity: warning
+          service: traderbot
+        annotations:
+          summary: "Sem ciclos recentes"
+          description: "O engine do bot nao executou ciclos nos ultimos 2 minutos."
+
+      - alert: TraderBotHighCycleErrorRate
+        expr: (sum(rate(traderbot_cycles_total{status="error"}[5m])) / clamp_min(sum(rate(traderbot_cycles_total[5m])), 1e-9)) > 0.30
+        for: 5m
+        labels:
+          severity: critical
+          service: traderbot
+        annotations:
+          summary: "Taxa alta de erro no ciclo"
+          description: "Mais de 30% dos ciclos estao falhando por pelo menos 5 minutos."
+
+      - alert: TraderBotUnrealizedLossHigh
+        expr: traderbot_position_open == 1 and traderbot_unrealized_pnl_percent < -2
+        for: 1m
+        labels:
+          severity: warning
+          service: traderbot
+        annotations:
+          summary: "Perda nao realizada elevada"
+          description: "Posicao aberta com PnL nao realizado abaixo de -2%."
+
+      - alert: TraderBotCumulativeLossHigh
+        expr: traderbot_cumulative_pnl_quote < -50
+        for: 1m
+        labels:
+          severity: warning
+          service: traderbot
+        annotations:
+          summary: "Perda acumulada elevada"
+          description: "PnL acumulado do bot caiu abaixo de -50 na moeda de cotacao."

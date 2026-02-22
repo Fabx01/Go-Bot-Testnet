@@ -18,6 +18,7 @@ Bot de trading em Go para Binance com foco em execucao continua (VPS), codigo de
 - `internal/domain`: tipos de dominio (candles, sinal, posicao, ordem)
 - `internal/strategy`: estrategias e indicadores
 - `internal/engine`: ciclo de decisao e execucao
+- `internal/observability`: metrica Prometheus e servidor HTTP (`/metrics`, `/healthz`)
 
 ## Estrategia implementada
 
@@ -36,6 +37,8 @@ Variaveis principais:
 - `BINANCE_API_SECRET`
 - `BINANCE_TESTNET` (`true/false`, default `true`)
 - `BINANCE_ALLOW_MAINNET` (default `false`)
+- `BOT_OBSERVABILITY` (`true/false`, default `true`)
+- `BOT_OBSERVABILITY_ADDR` (default `:8080`)
 - `BOT_DRY_RUN` (`true/false`, default `true`)
 - `BOT_SYMBOL` (default `BTCUSDT`)
 - `BOT_INTERVAL` (default `1m`)
@@ -60,7 +63,7 @@ go build -o traderbot ./cmd
 ## Deploy em VPS (DigitalOcean)
 
 1. Crie uma Droplet Ubuntu 22.04+.
-2. Instale Go 1.21+ e copie o projeto.
+2. Instale Go 1.22+ e copie o projeto.
 3. Configure `.env` com `testnet=true` e `dry_run=true` no inicio.
 4. Compile:
 
@@ -96,6 +99,67 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now traderbot
 sudo journalctl -u traderbot -f
 ```
+
+## Monitoramento (Prometheus + Grafana)
+
+O bot expoe metricas em HTTP:
+
+- `GET /metrics`
+- `GET /healthz`
+
+Endereco default do bot para metrica: `http://IP_DA_VPS:8080/metrics`.
+
+### Subir stack de monitoramento
+
+```sh
+cd monitoring
+docker compose up -d
+```
+
+URLs:
+
+- Prometheus: `http://IP_DA_VPS:9090`
+- Alertmanager: `http://IP_DA_VPS:9093`
+- Grafana: `http://IP_DA_VPS:3000` (login default `admin`/`admin`)
+
+Arquivos de monitoramento:
+
+- `monitoring/docker-compose.yml`
+- `monitoring/prometheus/prometheus.yml`
+- `monitoring/prometheus/alerts.yml`
+- `monitoring/alertmanager/alertmanager.yml`
+- `monitoring/grafana/provisioning/datasources/prometheus.yml`
+- `monitoring/grafana/provisioning/dashboards/dashboards.yml`
+- `monitoring/grafana/dashboards/traderbot-overview.json`
+
+Metricas principais exportadas:
+
+- `traderbot_cycles_total`
+- `traderbot_cycle_duration_seconds`
+- `traderbot_signals_total`
+- `traderbot_trades_total`
+- `traderbot_position_open`
+- `traderbot_last_price`
+- `traderbot_unrealized_pnl_percent`
+- `traderbot_last_trade_pnl_percent`
+- `traderbot_last_trade_pnl_quote`
+- `traderbot_cumulative_pnl_quote`
+- `traderbot_cumulative_pnl_percent`
+
+Alertas implementados (Prometheus rules):
+
+- `TraderBotDown`: bot fora do ar por 1 minuto.
+- `TraderBotNoCycles`: sem ciclos do engine por 2 minutos.
+- `TraderBotHighCycleErrorRate`: taxa de erro acima de 30% por 5 minutos.
+- `TraderBotUnrealizedLossHigh`: posicao aberta com perda nao realizada abaixo de -2%.
+- `TraderBotCumulativeLossHigh`: perda acumulada menor que -50 na moeda de cotacao.
+
+Para visualizar alertas:
+
+- Prometheus: `http://IP_DA_VPS:9090/alerts`
+- Alertmanager: `http://IP_DA_VPS:9093`
+
+Observacao: o Alertmanager foi configurado com receiver `default-null` (nao envia notificacao externa ainda). Se quiser, eu configuro envio para Telegram, Discord ou email.
 
 ## Observacoes de risco
 

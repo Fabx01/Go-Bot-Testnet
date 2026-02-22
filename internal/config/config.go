@@ -13,6 +13,8 @@ type Config struct {
 	BinanceAPISecret   string
 	UseTestnet         bool
 	AllowMainnet       bool
+	Observability      bool
+	ObservabilityAddr  string
 	DryRun             bool
 	Symbol             string
 	Interval           string
@@ -34,6 +36,8 @@ func Load() (*Config, error) {
 		BinanceAPISecret:   strings.TrimSpace(os.Getenv("BINANCE_API_SECRET")),
 		UseTestnet:         parseBoolWithDefault("BINANCE_TESTNET", true),
 		AllowMainnet:       parseBoolWithDefault("BINANCE_ALLOW_MAINNET", false),
+		Observability:      parseBoolWithDefault("BOT_OBSERVABILITY", true),
+		ObservabilityAddr:  parseStringWithDefault("BOT_OBSERVABILITY_ADDR", ":8080"),
 		DryRun:             parseBoolWithDefault("BOT_DRY_RUN", true),
 		Symbol:             strings.ToUpper(parseStringWithDefault("BOT_SYMBOL", "BTCUSDT")),
 		Interval:           parseStringWithDefault("BOT_INTERVAL", "1m"),
@@ -61,6 +65,9 @@ func (c *Config) Validate() error {
 	}
 	if !c.UseTestnet && !c.AllowMainnet {
 		return fmt.Errorf("mainnet bloqueada: defina BINANCE_ALLOW_MAINNET=true para liberar")
+	}
+	if c.Observability && strings.TrimSpace(c.ObservabilityAddr) == "" {
+		return fmt.Errorf("BOT_OBSERVABILITY_ADDR nao pode ser vazio quando BOT_OBSERVABILITY=true")
 	}
 	if c.CandleLimit < 50 {
 		return fmt.Errorf("BOT_CANDLE_LIMIT deve ser >= 50")
